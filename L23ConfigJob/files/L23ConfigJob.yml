@@ -1,0 +1,26 @@
+---
+general:
+  name: L23ConfigJob
+  description: >
+    This job installs the handover configuration files and calls the handover modification script.
+  job_version: '1.0'
+  keywords:
+    - routing
+    - configuration
+  persistent: no
+
+platform_configuration:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '20.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob.py'
+    command_stop:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '22.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob.py'
+    command_stop:
+    
+arguments: {}
+
+statistics: []

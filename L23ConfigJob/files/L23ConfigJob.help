@@ -1,0 +1,25 @@
+# L23ConfigJob
+
+Questo job configura il routing copiando dei file di configurazione e lanciando uno script di modifica del routing.
+
+## Esecuzione
+
+Il job esegue i seguenti passi:
+1. Copia i file `curr_route.conf` e `change_route.sh` nella directory `/opt/openbach/scripts`.
+2. Richiama lo script `change_route.sh`.
+
+## Installazione
+
+Durante l'installazione, viene creata la directory `/opt/openbach/scripts` e vengono copiati i file di configurazione.
+
+## Disinstallazione
+
+La directory `/opt/openbach/scripts` e i suoi contenuti vengono rimossi.
+
+## Esempi di utilizzo
+
+Esegui il job manualmente tramite il comando:
+
+```bash
+sudo python3 /opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob.py
+

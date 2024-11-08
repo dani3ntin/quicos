@@ -1,0 +1,40 @@
+---
+- name: Create the /opt/openbach/scripts directory
+  file:
+    path: /opt/openbach/scripts
+    state: directory
+    mode: '0755'
+
+- name: Copy configuration files
+  copy:
+    src: "{{ item }}"
+    dest: "/opt/openbach/scripts/"
+    mode: '0755'
+  with_items:
+    - "files/curr_route.conf"
+    - "files/change_route.sh"
+
+- name: Create the /opt/openbach/agent/jobs/L23ConfigJob directory
+  file:
+    path: /opt/openbach/agent/jobs/L23ConfigJob
+    state: directory
+    mode: '0755'
+
+- name: Copy the Python job script
+  copy:
+    src: "files/L23ConfigJob.py"
+    dest: "/opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob.py"
+    mode: '0755'
+
+- name: Copy the Python job help script
+  copy:
+    src: "files/L23ConfigJob.help"
+    dest: "/opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob.help"
+    mode: '0644'
+
+- name: Copy the Python job filter configuration script
+  copy:
+    src: "files/L23ConfigJob_rstats_filter.conf"
+    dest: "/opt/openbach/agent/jobs/L23ConfigJob/L23ConfigJob_rstats_filter.conf"
+    mode: '0644'
+

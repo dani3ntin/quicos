@@ -1,0 +1,6 @@
+---
+- name: Remove the L23ConfigJob job directory
+  file:
+    path: /opt/openbach/scripts
+    state: absent
+
