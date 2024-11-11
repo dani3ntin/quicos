@@ -1,0 +1,24 @@
+---
+- name: Create the /opt/openbach/agent/jobs/KPIMetrics directory
+  file:
+    path: /opt/openbach/agent/jobs/KPIMetrics
+    state: directory
+    mode: '0755'
+
+- name: Copy the Python job script
+  copy:
+    src: "files/KPIMetrics.py"
+    dest: "/opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.py"
+    mode: '0755'
+
+- name: Copy the job help file
+  copy:
+    src: "files/KPIMetrics.help"
+    dest: "/opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.help"
+    mode: '0644'
+
+- name: Copy the job YAML configuration file
+  copy:
+    src: "files/KPIMetrics.yml"
+    dest: "/opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.yml"
+    mode: '0644'

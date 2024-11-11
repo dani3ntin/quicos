@@ -1,0 +1,10 @@
+MetricheKPI Job
+
+Description:
+  This job calculates the average RTT and throughput based on specific log entries found in /home/vagrant/logs.
+
+Usage:
+  - The script looks for either "log_client_1.txt" or "log_server_1.txt" in the /home/vagrant/logs directory.
+  - It calculates the average smoothed RTT and congestion window size, treating this as the throughput.
+  - Results are saved in "MetricheKPI_results.txt" in the same directory.
+

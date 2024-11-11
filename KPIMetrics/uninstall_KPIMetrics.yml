@@ -1,0 +1,8 @@
+- name: Uninstall MetricheKPI Job
+  hosts: all
+  tasks:
+    - name: Remove the MetricheKPI job directory
+      file:
+        path: /opt/openbach/agent/jobs/MetricheKPI
+        state: absent
+

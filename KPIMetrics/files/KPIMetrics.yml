@@ -1,0 +1,26 @@
+---
+general:
+  name: KPIMetrics
+  description: >
+    Job for calculating average RTT and throughput from log files of Quicos job.
+  job_version: '1.0'
+  keywords:
+    - routing
+    - configuration
+  persistent: no
+
+platform_configuration:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '20.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.py'
+    command_stop:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '22.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.py'
+    command_stop:
+    
+arguments: {}
+
+statistics: []
