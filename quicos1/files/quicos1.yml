@@ -1,0 +1,144 @@
+---
+
+general:
+  name:            quicos1
+  description: >
+      This job runs a client or a server QUIC. Supported QUIC implementations are ngtcp2, picoquic.
+      WARNING: quicly is not working, so this implementation is disabled even if installed on the agents.
+      Known that, by default, each implementation is cloned from its standard repository.
+      The installed version is the HEAD of the master branch. If you wish to install another version,
+      you need to modify global variables related to the implementation to change.
+      These variables are located at the begining of the install file of the job.
+      So you have to change the address of the git repository as well as the version to install.
+  job_version:     '1'
+  keywords:        [quicos1, web, ngtcp2, picoquic, quicly]
+  persistent:      True
+  need_privileges: yes
+
+platform_configuration:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '20.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicos1/quicos1.py'
+    command_stop:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '22.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicos1/quicos1.py'
+    command_stop:
+
+arguments:
+  required:
+    - name:        implementation
+      type:        str
+      count:        1
+      description: >
+          Choose a QUIC implementation. Know that, you can install a specific version for any implementation
+      choices:
+        - ngtcp2
+        - picoquic
+        #- quicly
+    - name:        congestion_control
+      type:        str
+      count:        1
+      description: >
+          Choose a QUIC congestion control.
+      choices:
+        - cubic
+        - reno
+        - bbr
+        - wave
+  optional:
+    - name:        server_port
+      type:        int
+      count:       1
+      flag:        '-p'
+      description: >
+        The server port to connect to/ listen on (default 4433)
+    - name:        store_logs
+      type:        None
+      count:       0
+      flag:        '-s'
+      description: >
+        Enable this option to store logs in the specified directory (default disabled)
+    - name:        log_dir
+      type:        str
+      count:       1
+      flag:        '-l'
+      description: >
+        The path to the directory to save log files (default /tmp/)
+    - name:        extra_args
+      type:        str
+      count:       1
+      flag:        '-e'
+      description: >
+        Specify additional CLI arguments that are supported by the chosen implementation
+
+  subcommand:
+  - group_name:  mode
+    optional:    False
+    choices:
+      - name:    server
+        required:
+          - name:        server_ip
+            type:        str
+            count:       1
+            description: >
+              The IP address of the server to listen on
+        optional:
+      - name:    client
+        required:
+          - name:        server_ip
+            type:        ip
+            count:       1
+            description: >
+              The IP address of the server
+          - name:        resources
+            type:        str
+            count:       1
+            description: >
+              Comma-separated list of resources to fetch in parallel over concurrent streams. Specify only
+              the resource name, not the path. These resources must be located at the root of the directory
+              /var/www/quic.openbach.com
+        optional:
+          - name:        download_dir
+            type:        'str'
+            count:        1
+            flag:         '-d'
+            description: >
+              The path to the directory to save downloaded resources (default /tmp/)
+          - name:        nb_runs
+            type:        int
+            count:       1
+            flag:        '-n'
+            description: >
+              The number of times resources will be fetched (default 1)
+statistics:
+  - name: 'download_time'
+    description: The time (in ms) needed to transfer resources from server to client
+    frequency: 'once each transfer is completed'
+  - name: 'downloaded_bytes'
+    description: The amount of data received by the client
+    frequency: 'once each transfer is completed'
+  - name: 'min_rtt'
+    description: The minimum round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: 'smoothed_rtt'
+    description: The smoothed round-trip time calculated over time
+    frequency: 'periodically during the transfer'
+  - name: 'latest_rtt'
+    description: The latest round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: 'rtt_variance'
+    description: The variance in round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: 'pto_count'
+    description: The number of Probe Timeout events observed
+    frequency: 'periodically during the transfer'
+  - name: 'congestion_window'
+    description: The size of the congestion window in bytes
+    frequency: 'periodically during the transfer'
+  - name: 'bytes_in_flight'
+    description: The number of bytes currently in flight
+    frequency: 'periodically during the transfer'
+

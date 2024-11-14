@@ -1,5 +1,6 @@
 import json
 import os
+import collect_agent
 
 def main():
     log_dir = "/home/vagrant/logs"
@@ -9,8 +10,8 @@ def main():
     log_file = None
     if os.path.exists(os.path.join(log_dir, "log_client_1.txt")):
         log_file = os.path.join(log_dir, "log_client_1.txt")
-    elif os.path.exists(os.path.join(log_dir, "log_server_1.txt")):
-        log_file = os.path.join(log_dir, "log_server_1.txt")
+    elif os.path.exists(os.path.join(log_dir, "log_server.txt")):
+        log_file = os.path.join(log_dir, "log_server.txt")
     
     if not log_file:
         print("Log file not found in /home/vagrant/logs.")
@@ -54,6 +55,10 @@ def main():
         f.write(f"Average RTT: {average_rtt}ms\n")
         f.write(f"Average Throughput: {average_throughput}bytes/sec\n")
 
+    collect_agent.send_stat(
+            collect_agent.now(),
+            average_rtt=average_rtt,
+            average_throughput=average_throughput)
 if __name__ == "__main__":
     main()
 

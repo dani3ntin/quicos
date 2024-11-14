@@ -23,4 +23,10 @@ platform_configuration:
     
 arguments: {}
 
-statistics: []
+statistics:
+  - name: 'average_rtt'
+    description: 'Average RTT misured after excecuting the Quicos Job'
+    frequency: 'once each transfer is completed'
+  - name: 'average_throughput'
+    description: 'Average throughput misured after excecuting the Quicos Job'
+    frequency: 'once each transfer is completed'
