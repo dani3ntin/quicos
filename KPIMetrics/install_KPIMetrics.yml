@@ -22,3 +22,9 @@
     src: "files/KPIMetrics.yml"
     dest: "/opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.yml"
     mode: '0644'
+    
+- name: Copy the job rstats filter configuration file
+  copy:
+    src: "files/KPIMetrics_rstats_filter.conf"
+    dest: "/opt/openbach/agent/jobs/KPIMetrics/KPIMetrics_rstats_filter.conf"
+    mode: '0644'
