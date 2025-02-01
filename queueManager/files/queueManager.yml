@@ -34,6 +34,12 @@ arguments:
       flag: '--bond'
       description: >
           Apply the command to both `eth3` and `eth4` interfaces.
+    - name: delay
+      type: int
+      count: 1
+      flag: '--delay'
+      description: >
+          set the delay.
   required: []
   subcommand:
     - group_name: action

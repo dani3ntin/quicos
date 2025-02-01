@@ -17,6 +17,7 @@ def main():
     parser.add_argument('action', type=str, choices=['reset_queue', 'set_queue'], help="Action to perform")
     parser.add_argument('queue_type', type=str, choices=['HTB', 'FIFO', 'FQ_CoDel'], nargs='?', default='HTB', help="Type of queue to configure")
     parser.add_argument('--bond', action='store_true', help="Apply to both eth3 and eth4")
+    parser.add_argument('--delay', help="Set the delay")
 
     args = parser.parse_args()
 
