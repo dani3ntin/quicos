@@ -1,9 +1,9 @@
 ---
 
 general:
-  name:            quicos1
+  name:            quicosWAVE
   description: >
-      This job runs a client or a server QUIC. Supported QUIC implementations are ngtcp2, picoquic.
+      This job runs a client or a server QUIC. Supported QUIC implementations are ngtcp2.
       WARNING: quicly is not working, so this implementation is disabled even if installed on the agents.
       Known that, by default, each implementation is cloned from its standard repository.
       The installed version is the HEAD of the master branch. If you wish to install another version,
@@ -11,7 +11,7 @@ general:
       These variables are located at the begining of the install file of the job.
       So you have to change the address of the git repository as well as the version to install.
   job_version:     '1'
-  keywords:        [quicos1, web, ngtcp2, picoquic, quicly]
+  keywords:        [quicosWAVE, web, wave]
   persistent:      True
   need_privileges: yes
 
@@ -19,12 +19,12 @@ platform_configuration:
   - ansible_system: 'Debian'
     ansible_distribution:  'Ubuntu'
     ansible_distribution_version: '20.04'
-    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicos1/quicos1.py'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicosWAVE/quicosWAVE.py'
     command_stop:
   - ansible_system: 'Debian'
     ansible_distribution:  'Ubuntu'
     ansible_distribution_version: '22.04'
-    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicos1/quicos1.py'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicosWAVE/quicosWAVE.py'
     command_stop:
 
 arguments:
@@ -36,18 +36,6 @@ arguments:
           Choose a QUIC implementation. Know that, you can install a specific version for any implementation
       choices:
         - ngtcp2
-        - picoquic
-        #- quicly
-    - name:        congestion_control
-      type:        str
-      count:        1
-      description: >
-          Choose a QUIC congestion control.
-      choices:
-        - cubic
-        - reno
-        - bbr
-        - wave
   optional:
     - name:        server_port
       type:        int
@@ -55,12 +43,6 @@ arguments:
       flag:        '-p'
       description: >
         The server port to connect to/ listen on (default 4433)
-    - name:        store_logs
-      type:        None
-      count:       0
-      flag:        '-s'
-      description: >
-        Enable this option to store logs in the specified directory (default disabled)
     - name:        log_dir
       type:        str
       count:       1
@@ -80,6 +62,16 @@ arguments:
     choices:
       - name:    server
         required:
+          - name:        congestion_control
+            type:        str
+            count:        1
+            description: >
+              Choose a QUIC congestion control.
+            choices:
+              - cubic
+              - reno
+              - bbr
+              - wave
           - name:        server_ip
             type:        str
             count:       1
@@ -113,6 +105,12 @@ arguments:
             flag:        '-n'
             description: >
               The number of times resources will be fetched (default 1)
+          - name:        experiment_id
+            type:        str
+            count:       1
+            flag:        '-id'
+            description: >
+              The string that identifies the experiment. MIt mst be the same for all the clients.
 statistics:
   - name: 'download_time'
     description: The time (in ms) needed to transfer resources from server to client

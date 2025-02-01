@@ -1,0 +1,62 @@
+---
+
+general:
+  name: queueManager
+  description: >
+      Manage queue disciplines (qdisc) on network interfaces.
+      Allows resetting or configuring specific queue types.
+  job_version: '1.0'
+  keywords:
+    - queue
+    - qdisc
+    - HTB
+    - FIFO
+    - FQ_CoDel
+  persistent: no
+
+platform_configuration:
+  - ansible_system: 'Debian'
+    ansible_distribution: 'Ubuntu'
+    ansible_distribution_version: '20.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/queueManager/queueManager.py'
+    command_stop:
+  - ansible_system: 'Debian'
+    ansible_distribution: 'Ubuntu'
+    ansible_distribution_version: '22.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/queueManager/queueManager.py'
+    command_stop:
+
+arguments:
+  optional:
+    - name: bond
+      type: None
+      count: 0
+      flag: '--bond'
+      description: >
+          Apply the command to both `eth3` and `eth4` interfaces.
+  required: []
+  subcommand:
+    - group_name: action
+      optional: False
+      choices:
+        - name: reset_queue
+          description: >
+              Reset the queue discipline on the network interface (eth3).
+          required: []
+          optional: []
+
+        - name: set_queue
+          description: >
+              Configure a specific queue discipline on the network interface (eth3).
+          required:
+            - name: queue_type
+              type: str
+              count: 1
+              description: >
+                  Queue type to configure. Choose between 'HTB', 'FIFO', or 'FQ_CoDel'.
+              choices:
+                - HTB
+                - FIFO
+                - FQ_CoDel
+          optional: []
+

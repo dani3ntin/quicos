@@ -1,0 +1,6 @@
+---
+- name: Remove the Queue Manager Job Folder
+  file:
+    path: /opt/openbach/agent/jobs/queueManager
+    state: absent
+

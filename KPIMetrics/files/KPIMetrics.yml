@@ -1,32 +1,44 @@
----
 general:
   name: KPIMetrics
   description: >
-    Job for calculating average RTT and throughput from log files of Quicos job.
+    Job per calcolare le metriche di throughput e RTT per i client, e la fairness del server.
   job_version: '1.0'
   keywords:
-    - routing
-    - configuration
+    - metrics
+    - throughput
+    - RTT
+    - fairness
   persistent: no
 
 platform_configuration:
   - ansible_system: 'Debian'
-    ansible_distribution:  'Ubuntu'
+    ansible_distribution: 'Ubuntu'
     ansible_distribution_version: '20.04'
     command: '/usr/bin/env python3 /opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.py'
-    command_stop:
+    command_stop: null
   - ansible_system: 'Debian'
-    ansible_distribution:  'Ubuntu'
+    ansible_distribution: 'Ubuntu'
     ansible_distribution_version: '22.04'
     command: '/usr/bin/env python3 /opt/openbach/agent/jobs/KPIMetrics/KPIMetrics.py'
-    command_stop:
-    
-arguments: {}
+    command_stop: null
 
-statistics:
-  - name: 'average_rtt'
-    description: 'Average RTT misured after excecuting the Quicos Job'
-    frequency: 'once each transfer is completed'
-  - name: 'average_throughput'
-    description: 'Average throughput misured after excecuting the Quicos Job'
-    frequency: 'once each transfer is completed'
+arguments:
+  required:
+    - name: log_directory
+      type: str
+      count: 1
+      description: >
+        Percorso della cartella contenente i file di log.
+  subcommand:
+    - group_name: mode
+      optional: false
+      choices:
+        - name: server
+        - name: client
+  optional:
+    - name: experiment_id
+      type: str
+      count: 1
+      flag: '-id'
+      description: >
+        Nome della cartella contenente i log specifici per l'esperimento.

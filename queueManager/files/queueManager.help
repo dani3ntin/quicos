@@ -1,0 +1,27 @@
+# Job Description
+
+The `queue_manager` job allows users to manage queue disciplines on network interfaces. It supports resetting the current queue configuration or setting specific queue types (HTB, FIFO, or FQ_CoDel).
+
+## Examples
+
+### Reset the queue on net3
+In the web interface, set the following parameters:
+- **action**: `reset_queue`
+
+Or launch manually:
+JOB_NAME=queue_manager sudo -E python3 /opt/openbach/agent/jobs/queue_manager/queue_manager.py reset_queue
+
+
+### Set HTB queue on net3 and net4
+In the web interface, set the following parameters:
+- **action**: `set_queue`
+- **queue_type**: `HTB`
+- **bond**: `True`
+
+Or launch manually:
+JOB_NAME=queue_manager sudo -E python3 /opt/openbach/agent/jobs/queue_manager/queue_manager.py set_queue --queue_type HTB --bond
+
+
+## Additional Information
+- The job supports applying commands to `net3` or both `net3` and `net4` when `bond` is enabled.
+

@@ -1,0 +1,18 @@
+---
+- name: Create the Queue Manager Job Folder
+  file:
+    path: /opt/openbach/agent/jobs/queueManager
+    state: directory
+    mode: '0755'
+
+- name: Install Queue Manager Job
+  copy:
+    src: "{{ item.file }}"
+    dest: /opt/openbach/agent/jobs/queueManager/
+    mode: "{{ item.mode }}"
+  with_items:
+    - { file: 'queueManager.py', mode: '0755' }
+    - { file: 'queueManager.yml', mode: '0644' }
+    - { file: 'queueManager_rstats_filter.conf', mode: '0644' }
+
+

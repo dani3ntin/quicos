@@ -31,12 +31,12 @@ Or launch the job manually from the CLI of the Agent as follows:
 
 From server agent:
 <code>
-JOB_NAME=quic sudo -E python3 /opt/openbach/agent/jobs/quicos1/quicos1.py ngtcp2 -p 4433 server  
+JOB_NAME=quic sudo -E python3 /opt/openbach/agent/jobs/ngtcp2/ngtcp2.py ngtcp2 -p 4433 server  
 </code>
 
 From client agent:
 <code>
-JOB_NAME=quic sudo -E python3 /opt/openbach/agent/jobs/quicos1/quicos1.py picoquic -p 4433 client  192.168.1.1  logo.jpg;index.html -n 10
+JOB_NAME=quic sudo -E python3 /opt/openbach/agent/jobs/ngtcp2/ngtcp2.py picoquic -p 4433 client  192.168.1.1  logo.jpg;index.html -n 10
 </code>
 
 === Additional Information ===

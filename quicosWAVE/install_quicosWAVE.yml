@@ -34,15 +34,9 @@
 ---
 - name: Init global variables
   set_fact:
-    domain: quicos1.openbach.com
-    ngtcp2:
-      git_repo: https://github.com/ngtcp2/ngtcp2
-      version: HEAD
-    picoquic:
-      git_repo: https://github.com/private-octopus/picoquic
-      version: HEAD
-    quicly:
-      git_repo: https://github.com/h2o/quicly
+    domain: quicosWAVE.openbach.com
+    wave:
+      git_repo: https://gitlab+deploy-token-6728044:gldt-6iVuA2i_fjxpxwa9u-jm@gitlab.com/romars1/quicos/ngtcp2-wave.git
       version: HEAD
     cacheable: yes
 
@@ -65,10 +59,10 @@
 
 # Create job repository and deploy files
 - name: Create the quic job repository
-  file: path=/opt/openbach/agent/jobs/quicos1 state=directory mode=0755
+  file: path=/opt/openbach/agent/jobs/quicosWAVE state=directory mode=0755
 
-# Install ngtcp2
-- name: Install ngtcp2 requirements
+# Install wave
+- name: Install wave requirements
   apt:
     pkg:
       - g++-12
@@ -110,7 +104,7 @@
 - name: Compile and install lib OpenSSL for QUIC
   shell: "{{ item }} chdir=/tmp/OpenSSL_1_1_1l+quic"
   with_items:
-    - "./config enable-tls1_3 CC=gcc-12 CXX=g++-12 --prefix=/opt/openbach/agent/jobs/quicos1 LDFLAGS=\"-L/opt/openbach/agent/jobs/quicos1/lib\""
+    - "./config enable-tls1_3 CC=gcc-12 CXX=g++-12 --prefix=/opt/openbach/agent/jobs/quicosWAVE LDFLAGS=\"-L/opt/openbach/agent/jobs/quicosWAVE/lib\""
     - "make -j$(nproc)"
     - "make install_sw"
 
@@ -126,150 +120,46 @@
   shell: "{{ item }} chdir=/tmp/nghttp3/"
   with_items:
     - "autoreconf -i"
-    - "./configure CC=gcc-12 CXX=g++-12 CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicos1/include\" LDFLAGS=\"-L/opt/openbach/agent/jobs/quicos1/lib -Wl,-rpath,/opt/openbach/agent/jobs/quicos1/lib\" --prefix=/opt/openbach/agent/jobs/quicos1"
+    - "./configure CC=gcc-12 CXX=g++-12 CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicosWAVE/include\" LDFLAGS=\"-L/opt/openbach/agent/jobs/quicosWAVE/lib -Wl,-rpath,/opt/openbach/agent/jobs/quicosWAVE/lib\" --prefix=/opt/openbach/agent/jobs/quicosWAVE"
     - "make -j$(nproc) check"
     - "make install"
 
-- name: Clone ngtcp2 from github
+- name: Clone wave from github
   git:
-    repo: "{{ ngtcp2.git_repo }}"
-    dest: /tmp/ngtcp2
+    repo: "{{ wave.git_repo }}"
+    dest: /tmp/wave
     force: yes
-    version: "{{ ngtcp2.version }}"
+    version: "{{ wave.version }}"
   environment: "{{ openbach_proxies }}"
 
-- name: Compile and install ngtcp2
-  shell: "{{ item }} chdir=/tmp/ngtcp2/"
+- name: Compile and install wave
+  shell: "{{ item }} chdir=/tmp/wave/"
   with_items:
     - "autoreconf -i"
-    - "./configure CC=gcc-12 CXX=g++-12 PKG_CONFIG_PATH=/opt/openbach/agent/jobs/quicos1/lib/pkgconfig CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicos1/include\" LDFLAGS=\"-Wl,-rpath,/opt/openbach/agent/jobs/quicos1/lib\" --prefix=/opt/openbach/agent/jobs/quicos1"
+    - "./configure CC=gcc-12 CXX=g++-12 PKG_CONFIG_PATH=/opt/openbach/agent/jobs/quicosWAVE/lib/pkgconfig CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicosWAVE/include\" LDFLAGS=\"-Wl,-rpath,/opt/openbach/agent/jobs/quicosWAVE/lib\" --prefix=/opt/openbach/agent/jobs/quicosWAVE"
     - "make -j$(nproc) check"
     - "make install"
 
 - name: Launch ldconfig
-  shell: "{{ item }} chdir=/tmp/ngtcp2/"
+  shell: "{{ item }} chdir=/tmp/wave/"
   with_items:
     - "ldconfig"
   become: yes
 
-- name: Install ngtcp2 binaries
+- name: Install wave binaries
   copy: src={{ item.file }} dest=/usr/local/bin/{{ item.name }}  mode={{ item.mode }} remote_src=yes
   with_items:
-    - { file: '/tmp/ngtcp2/examples/qtlsclient', mode: '0755', name: 'ngtcp2_client' }
-    - { file: '/tmp/ngtcp2/examples/qtlsserver', mode: '0755', name: 'ngtcp2_server' }
+    - { file: '/tmp/wave/examples/qtlsclient', mode: '0755', name: 'wave_client' }
+    - { file: '/tmp/wave/examples/qtlsserver', mode: '0755', name: 'wave_server' }
   become: yes
 
-# Install picoquic
-- name: Install picoquic requirements
-  apt:
-    pkg:
-      - cmake
-      - build-essential
-      - pkg-config
-      - libssl-dev
-      - libbrotli-dev
-      - libscope-guard-perl
-      - libtest-tcp-perl
-      - git
-    state: present
-    update_cache: no
-  become: yes
-  environment: "{{ openbach_proxies }}"
-
-- name: Clone Picotls for QUIC from github
-  git:
-    repo: https://github.com/h2o/picotls
-    version: HEAD
-    dest: /tmp/picotls
-    force: yes 
-    recursive: yes
-  environment: "{{ openbach_proxies }}"
-
-- name: Set environment variables and Build picotls
-  environment: 
-    CC: gcc-12
-    CXX: g++-12
-    #CXXFLAGS: "-I/opt/openbach/agent/jobs/quicos_new/include"
-    #LDFLAGS: "-L/opt/openbach/agent/jobs/quicos_new/lib -Wl"
-  shell: "{{ item }} chdir=/tmp/picotls"
-  with_items:
-    - "cmake . -DCMAKE_INSTALL_PREFIX=/opt/openbach/agent/jobs/quicos1"
-    - "make preinstall" 
-    - "make"
-    - "make check"
-
-- name: Clone Picoquic from github
-  git:
-    repo: "{{ picoquic.git_repo }}"
-    dest: /tmp/picoquic
-    force: yes
-    version: "{{ picoquic.version }}"
-  environment: "{{ openbach_proxies }}"
-
-- name: Build picoquic
-  environment:
-    CC: gcc-12
-    CXX: g++-12
-    #CXXFLAGS: "-I/opt/openbach/agent/jobs/quicos_new/include"
-    #LDFLAGS: "-L/opt/openbach/agent/jobs/quicos_new/lib -Wl"
-  shell: "{{ item }} chdir=/tmp/picoquic"
-  with_items:
-    - "cmake . -DCMAKE_INSTALL_PREFIX=/opt/openbach/agent/jobs/quicos1"
-    - "make preinstall"
-    - "make"
-
-- name: Install picoquic binaries
-  copy: src={{ item.file }} dest=/usr/local/bin/{{ item.name }}  mode={{ item.mode }} remote_src=yes
-  with_items:
-    - { file: '/tmp/picoquic/picoquicdemo', mode: '0755', name: 'picoquic' }
-  become: yes
-
-# Install quicly
-- name: Install quicly requirements
-  apt:
-    pkg:
-      - cmake
-      - build-essential
-      - pkg-config
-      - libssl-dev
-      - git
-    state: present
-    update_cache: no
-  become: yes
-  environment: "{{ openbach_proxies }}"
-
-- name: Clone quicly github
-  git:
-    repo: "{{ quicly.git_repo }}"
-    dest: /tmp/quicly
-    force: yes
-    version: "{{ quicly.version }}"
-    recursive: yes
-  environment: "{{ openbach_proxies }}"
-
-- name: Set environment variables and Build quicly
-  environment:
-    CC: gcc-12
-    CXX: g++-12
-    #CXXFLAGS: "-I/opt/openbach/agent/jobs/quicos_new/include"
-    #LDFLAGS: "-L/opt/openbach/agent/jobs/quicos_new/lib -Wl,-rpath,/opt/openbach/agent/jobs/quicos_new/lib"
-  shell: "{{ item }} chdir=/tmp/quicly"
-  with_items:
-    - "cmake . -DCMAKE_INSTALL_PREFIX=/opt/openbach/agent/jobs/quicos1"
-    - "make"
-
-- name: Install quicly binaries
-  copy: src={{ item.file }} dest=/usr/local/bin/{{ item.name }}  mode={{ item.mode }} remote_src=yes
-  with_items:
-    - { file: '/tmp/quicly/cli', mode: '0755', name: 'quicly' }
-  become: yes
 
 - name: Copy files into job repository
-  copy: src={{ item.file }} dest=/opt/openbach/agent/jobs/quicos1/ mode={{ item.mode }}
+  copy: src={{ item.file }} dest=/opt/openbach/agent/jobs/quicosWAVE/ mode={{ item.mode }}
   with_items:
-    - { file: 'quicos1.help', mode: '0644' }
-    - { file: 'quicos1_rstats_filter.conf', mode: '0644' }
-    - { file: 'quicos1.py', mode: '0755' }
+    - { file: 'quicosWAVE.help', mode: '0644' }
+    - { file: 'quicosWAVE_rstats_filter.conf', mode: '0644' }
+    - { file: 'quicosWAVE.py', mode: '0755' }
 
 - name: Create the HTDOCS DIR
   file: path=/var/www/{{ domain }} state=directory
@@ -283,6 +173,14 @@
     - { size: '10M' }
     - { size: '100M' }
   become: yes
+  
+- name: Install watchdog Python package
+  pip:
+    name: watchdog
+    executable: pip3
+    state: latest
+  become: yes
+  environment: "{{ openbach_proxies }}"
 
 # Install keys
 - name: Install pyOpenSSL

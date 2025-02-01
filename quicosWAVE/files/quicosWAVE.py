@@ -48,13 +48,18 @@ import tempfile
 import subprocess
 from enum import Enum
 from ipaddress import ip_address
+from watchdog.events import FileSystemEventHandler
+from datetime import datetime, timedelta
+from threading import Thread
+from watchdog.observers import Observer
+import multiprocessing
 
 import collect_agent
 
 
 DESCRIPTION = (
         "This job runs a client or a server QUIC. Supported QUIC implementations are: "
-        "ngtcp2, picoquic, quicly \n"
+        "ngtcp2 \n"
         "By default, for any implemenation, the installed version is the HEAD of the master branch. "
         "If you wish to install another version, you need to modify global variables related to the implementation "
         "at the begining of the install file of the job by speficying the address of the git repository as well as "
@@ -62,18 +67,16 @@ DESCRIPTION = (
 )
 
 DEFAULT_SERVER_PORT = 4433
-DEFAULT_CC = "cubic"
-CERT = "/etc/ssl/certs/quicos1.openbach.com.crt"
-KEY = "/etc/ssl/private/quicos1.openbach.com.pem"
-HTDOCS = "/var/www/quicos1.openbach.com/"
-DOWNLOAD_DIR = tempfile.mkdtemp(prefix='openbach_job_quicos1-')
+DEFAULT_CC = "wave"
+CERT = "/etc/ssl/certs/quicosWAVE.openbach.com.crt"
+KEY = "/etc/ssl/private/quicosWAVE.openbach.com.pem"
+HTDOCS = "/var/www/quicosWAVE.openbach.com/"
+DOWNLOAD_DIR = tempfile.mkdtemp(prefix='openbach_job_quicosWAVE-')
 LOG_DIR = tempfile.mkdtemp(dir=DOWNLOAD_DIR, prefix='logs-')
 
 
 class Implementations(Enum):
     NGTCP2='ngtcp2'
-    PICOQUIC='picoquic'
-    QUICLY='quicly'
 
 
 class CongestionControls(Enum):
@@ -90,8 +93,8 @@ class DownloadError(RuntimeError):
                 "\n {} \n {}".format(resource, p.stdout.decode(), p.stderr.decode())
                 )
         super().__init__(self.message)
-
-
+        
+        
 def ensure_directory_exists(directory_path):
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -100,7 +103,130 @@ def ensure_directory_exists(directory_path):
         raise NotADirectoryError(f"Path '{directory_path}' exists but is not a directory.")
     else:
         print(f"Directory '{directory_path}' already exists.")
+    return directory_path
+    
+
+class FileHandler(FileSystemEventHandler):
+    def __init__(self, log_dir):
+        self.log_dir = log_dir
+
+    def on_modified(self, event):
+        if not event.is_directory:  # Ignora le modifiche ai soli file
+            self._backup_file(event.src_path)
+
+    def on_created(self, event):
+        if not event.is_directory:  # Ignora la creazione di directory
+            self._backup_file(event.src_path)
+
+    def _backup_file(self, file_path):
+        # Crea una directory con il timestamp nella log_dir
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        backup_dir = os.path.join(self.log_dir, timestamp)
+
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+
+        # Copia il file nella directory di backup
+        try:
+            shutil.copy(file_path, backup_dir)
+            print(f"File copiato: {file_path} -> {backup_dir}")
+        except Exception as e:
+            print(f"Errore durante la copia del file {file_path}: {e}")
         
+        
+class LogFileHandler(FileSystemEventHandler):
+    def __init__(self, collect_agent):
+        self.collect_agent = collect_agent
+        self.file_positions = {}
+        self.file_indices = {}
+        self.current_index = 1
+        self.processes = {}
+
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.endswith(".sqlog"):
+            print(f"Nuovo file di log creato: {event.src_path}")
+            
+            if event.src_path not in self.file_indices:
+                self.file_indices[event.src_path] = self.current_index
+                print(f"Assegnato indice {self.current_index} al file {event.src_path}")
+                self.current_index += 1
+            else:
+                print(f"File {event.src_path} già monitorato con indice {self.file_indices[event.src_path]}")
+            
+            process = multiprocessing.Process(target=self._read_new_lines, args=(event.src_path,))
+            process.start()
+            self.processes[event.src_path] = process
+            
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.endswith(".sqlog"):
+            # Se il file è già monitorato, ignora
+            if event.src_path in self.processes:
+                return
+            
+            # Se un nuovo file viene modificato, avvia un processo
+            process = multiprocessing.Process(target=self._read_new_lines, args=(event.src_path,))
+            process.start()
+            self.processes[event.src_path] = process
+
+    def _read_new_lines(self, file_path):
+        """ Legge nuove righe dal file senza bloccare gli altri processi """
+        try:
+            with open(file_path, "r") as file:
+                if file_path in self.file_positions:
+                    file.seek(self.file_positions[file_path])
+                else:
+                    self.file_positions[file_path] = 0
+
+                while True:
+                    line = file.readline()
+                    if not line:
+                        time.sleep(0.5)
+                        continue
+                    cleaned_line = line.strip()
+                    file_index = self.file_indices.get(file_path, 0)
+                    self._process_line(cleaned_line, file_index)
+                    self.file_positions[file_path] = file.tell()
+        except Exception as e:
+            print(f"Errore durante la lettura del file {file_path}: {e}")
+
+    def _process_line(self, line, file_index):
+        """ Elabora e invia i dati letti dal file """
+        try:
+            data = json.loads(line)
+            timestamp = data.get("time")
+            stats = data.get("data", {})
+
+            statistics = {
+                f'min_rtt_{file_index}': stats.get('min_rtt'),
+                f'smoothed_rtt_{file_index}': stats.get('smoothed_rtt'),
+                f'latest_rtt_{file_index}': stats.get('latest_rtt'),
+                f'rtt_variance_{file_index}': stats.get('rtt_variance'),
+                f'pto_count_{file_index}': stats.get('pto_count'),
+                f'congestion_window_{file_index}': stats.get('congestion_window'),
+                f'bytes_in_flight_{file_index}': stats.get('bytes_in_flight'),
+            }
+            print(f"Nuove statistiche dal file {file_index}: {statistics}")
+            self.collect_agent.send_stat(collect_agent.now(), **statistics)
+        except json.JSONDecodeError:
+            print(f"Riga non valida (non JSON): {line}")
+        except Exception as e:
+            print(f"Errore durante il processamento della riga: {e}")
+            
+
+def start_watchdog(collect_agent, log_dir):
+    event_handler = LogFileHandler(collect_agent)
+    observer = Observer()
+    observer.schedule(event_handler, path=log_dir, recursive=False)
+    observer.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
+
 def run_command(cmd, cwd=None):
     "Run cmd and wait for command to complete then return a CompletedProcessess instance"
     try:
@@ -148,7 +274,7 @@ def check_resources(resources, download_dir, p):
     return downloaded_bytes
 
 
-def build_cmd(implementation, mode, server_port, store_logs, log_file, server_ip=None, resources=None, download_dir=None, extra_args=None, congestion_control=None):
+def build_cmd(implementation, mode, server_port, log_file, server_ip=None, resources=None, download_dir=None, extra_args=None, congestion_control=None):
     cmd = []
     _, server_port = _command_build_helper(None, server_port)
     collect_agent.send_log(syslog.LOG_DEBUG, "quicos1: build_cmd: building command")
@@ -156,55 +282,23 @@ def build_cmd(implementation, mode, server_port, store_logs, log_file, server_ip
     if implementation == Implementations.NGTCP2.value:
         if mode == 'client':
             _, server_ip = _command_build_helper(None, server_ip)
-            cmd.extend(['ngtcp2_client', server_ip, server_port])
+            cmd.extend(['wave_client', server_ip, server_port])
             cmd.extend(['https://{}:{}/{}'.format(server_ip, server_port, res) for res in resources])
             cmd.extend(_command_build_helper('--download', download_dir))
             cmd.extend(['--exit-on-all-streams-close'])
             cmd.extend(['--no-http-dump'])
             cmd.extend(['--no-quic-dump'])
-            if congestion_control: cmd.extend(['--cc', congestion_control])
-            if store_logs: cmd.extend(_command_build_helper('--qlog-file', log_file))
+#            if congestion_control: cmd.extend(['--cc', congestion_control])
+            cmd.extend(_command_build_helper('--qlog-file', log_file))
             if extra_args: cmd.extend(shlex.split(extra_args))
         if mode == 'server':
-            cmd.extend(['ngtcp2_server', server_ip or '0.0.0.0', server_port])
+            cmd.extend(['wave_server', server_ip or '0.0.0.0', server_port])
             cmd.extend([KEY, CERT])
             cmd.extend(_command_build_helper('-d', HTDOCS))
-            if store_logs: cmd.extend(_command_build_helper('--qlog-dir', os.path.split(log_file)[0]))
+            cmd.extend(_command_build_helper('--qlog-dir', os.path.split(log_file)[0]))
             if extra_args: cmd.extend(shlex.split(extra_args))
         cmd.extend(['-q'])
-    if implementation == Implementations.PICOQUIC.value:
-        cmd.extend(['picoquic'])
-        if mode == 'client':
-            sni = "".join(random.choice(string.ascii_letters) for i in range(10))
-            _, server_ip = _command_build_helper(None, server_ip)
-            cmd.extend(_command_build_helper('-n', sni))
-            cmd.extend(_command_build_helper('-o', download_dir))
-            if store_logs: cmd.extend(_command_build_helper('-l', log_file))
-            if extra_args: cmd.extend(shlex.split(extra_args))
-            cmd.extend([server_ip, server_port])
-            cmd.extend([';'.join(['/{}'.format(res) for res in resources])])
-        if mode == 'server':
-            cmd.extend(_command_build_helper('-c', CERT))
-            cmd.extend(_command_build_helper('-k', KEY))
-            cmd.extend(_command_build_helper('-w', HTDOCS))
-            if store_logs: cmd.extend(_command_build_helper('-l', log_file))
-            cmd.extend(_command_build_helper('-p', server_port))
-            if extra_args: cmd.extend(shlex.split(extra_args))
-    if implementation == Implementations.QUICLY.value:
-        cmd.extend(['quicly'])
-        if mode == 'client':
-            _, server_ip = _command_build_helper(None, server_ip)
-            _, server_port = _command_build_helper(None, server_port)
-            if store_logs: cmd.extend(_command_build_helper('-e', log_file))
-            cmd.extend(['-p /{}'.format(res) for res in resources])
-            if extra_args: cmd.extend(shlex.split(extra_args))
-            cmd.extend([server_ip, server_port])
-        if mode == 'server':
-            cmd.extend(['ngtcp2_server', server_ip or '0.0.0.0', server_port])
-            cmd.extend(_command_build_helper('-c', CERT))
-            cmd.extend(_command_build_helper('-k', KEY))
-            if store_logs: cmd.extend(_command_build_helper('-e', log_file))
-            if extra_args: cmd.extend(shlex.split(extra_args))
+
     return cmd
 
 def tail_file(file_path):
@@ -221,15 +315,11 @@ def tail_file(file_path):
                         data = json.loads(cleaned_line)
                         if data.get("name") == "recovery:metrics_updated":
                             process_statistics(data)
-                        else:
-                            collect_agent.send_stat(collect_agent.now(), prova=20)
 
                     except json.JSONDecodeError:
-                        collect_agent.send_stat(collect_agent.now(), prova=30)
                         pass
                 last_update_time = time.time()
             else:
-                time.sleep(0.1)
                 if time.time() - last_update_time > timeout:
                     break
 
@@ -247,56 +337,59 @@ def process_statistics(data):
         'bytes_in_flight': stats.get('bytes_in_flight'),
     }
     print(statistics)
-    collect_agent.send_stat(collect_agent.now(), min_rtt=stats.get('min_rtt'))
-    collect_agent.send_stat(collect_agent.now(), smoothed_rtt=stats.get('smoothed_rtt'))
-    collect_agent.send_stat(collect_agent.now(), latest_rtt=stats.get('latest_rtt'))
-    collect_agent.send_stat(collect_agent.now(), rtt_variance=stats.get('rtt_variance'))
-    collect_agent.send_stat(collect_agent.now(), pto_count=stats.get('pto_count'))
-    collect_agent.send_stat(collect_agent.now(), congestion_window=stats.get('congestion_window'))
-    collect_agent.send_stat(collect_agent.now(), bytes_in_flight=stats.get('bytes_in_flight'))
+    collect_agent.send_stat(collect_agent.now(), **statistics)
+    
+    
+def manage_log_client_directory(base_dir, experiment_id, run_number):
+    """
+    Crea una directory di log per un esperimento identificato da experiment_id
+    """
+    # Directory specifica per l'esperimento
+    folder_to_use = os.path.join(base_dir, experiment_id)
+    os.makedirs(folder_to_use, exist_ok=True)
+    print(f"Usata o creata la directory per l'esperimento: {folder_to_use}")
 
-    collect_agent.send_stat(timestamp, **statistics)
+    # Determina il nome univoco del file di log
+    log_file_name = f"log_client_{run_number}.txt"
+    log_file_path = os.path.join(folder_to_use, log_file_name)
 
+    # Crea il file di log
+    with open(log_file_path, "w") as log_file:
+        log_file.write("Log inizializzato.\n")
+    print(f"Creato file di log: {log_file_path}")
 
-def client(implementation, server_port, store_logs, log_dir, extra_args, server_ip, resources, download_dir, nb_runs, congestion_control):
-    ensure_directory_exists(log_dir)
+    return log_file_path
+    
+    
+def client(implementation, server_port, log_dir, extra_args, server_ip, resources, download_dir, nb_runs, experiment_id):
+    """
+    Avvia il client utilizzando un experiment_id per i log.
+    """
+    ensure_directory_exists(download_dir)
     errors = []
     for run_number in range(nb_runs):
-        with open(os.path.join(log_dir, 'log_client_{}.txt'.format(run_number + 1)), 'w+') as log_file:
+        # Usa experiment_id per creare la directory di log
+        log_file_path = manage_log_client_directory(log_dir, experiment_id, run_number + 1)
+
+        with open(log_file_path, 'w') as log_file:
             cmd = build_cmd(
-                    implementation,
-                    'client',
-                    server_port,
-                    store_logs,
-                    log_file.name,
-                    server_ip,
-                    resources.split(','),
-                    download_dir,
-                    extra_args=extra_args,
-                    congestion_control=congestion_control)
+                implementation,
+                'client',
+                server_port,
+                log_file.name,
+                server_ip,
+                resources.split(','),
+                download_dir,
+                extra_args=extra_args,
+            )
             remove_resources(resources, download_dir)
 
-            log_file_path = log_file.name
             tail_thread = threading.Thread(target=tail_file, args=(log_file_path,))
             tail_thread.start()
 
             start_time = collect_agent.now()
             p = run_command(cmd, cwd=download_dir)
             end_time = collect_agent.now()
-        elapsed_time = end_time - start_time
-        try:
-            downloaded_bytes = check_resources(resources, download_dir, p)
-        except DownloadError as error:
-            errors.append((run_number + 1, error.message))
-        else:
-            collect_agent.send_stat(
-                    collect_agent.now(),
-                    download_time=elapsed_time,
-                    downloaded_bytes=downloaded_bytes)
-            collect_agent.send_stat(
-                    collect_agent.now(),
-                    min_rtt=10)
-
 
     if errors:
         message = '\n'.join('Error on run #{}: {}'.format(run, error) for run, error in errors)
@@ -305,10 +398,17 @@ def client(implementation, server_port, store_logs, log_dir, extra_args, server_
 
 
 
-def server(implementation, congestion_control, server_port, store_logs, log_dir, extra_args, server_ip):
+def server(implementation, congestion_control, server_port, log_dir, extra_args, server_ip):
     ensure_directory_exists(log_dir)
-    with open(os.path.join(log_dir, 'log_server.txt'), 'w+') as log_file:
-        cmd = build_cmd(implementation, 'server', server_port, store_logs, log_file.name, server_ip=server_ip, extra_args=extra_args)
+    
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    output_dir = os.path.join(log_dir, timestamp)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    watchdog_thread = Thread(target=start_watchdog, args=(collect_agent, output_dir), daemon=True)
+    watchdog_thread.start()
+    with open(os.path.join(output_dir, 'log_server.txt'), 'w+') as log_file:
+        cmd = build_cmd(implementation, 'server', server_port, log_file.name, server_ip=server_ip, extra_args=extra_args)
         collect_agent.send_log(syslog.LOG_DEBUG, "Command to be executed: " + " ".join(cmd))
         #log_file_path = log_file.name
         #tail_thread = threading.Thread(target=tail_file, args=(log_file_path,))
@@ -316,6 +416,7 @@ def server(implementation, congestion_control, server_port, store_logs, log_dir,
         print("Command to be executed:", ' '.join(cmd))
         p = run_command(cmd, cwd=HTDOCS)
         print(f"Return code: {p.returncode}")
+
 
 
 def writable_dir(path):
@@ -336,12 +437,13 @@ def writable_dir(path):
         if not os.access(path, os.W_OK):
            raise argparse.ArgumentTypeError("Directory is not writable: '{}'".format(path)) 
     else:
-        raise argparse.ArgumentTypeError("Directory does not exist: '{}'".format(path))
+        ensure_directory_exists(path)
     return path
 
 
 
 if __name__ == "__main__":
+#    collect_agent.send_log(syslog.LOG_ERR, 'prova')
     with collect_agent.use_configuration('/opt/openbach/agent/jobs/quicos1/quicos1_rstats_filter.conf'):
         collect_agent.send_log(syslog.LOG_DEBUG, "quicos1: job started")
 
@@ -355,25 +457,13 @@ if __name__ == "__main__":
         parser.add_argument(
 	    'implementation',
 	    choices=[implem.value for implem in Implementations],
-	    help='Choose a QUIC implementation.'
+	    help='Choose a QUIC implementation (ngtcp only).'
 	)
-
-        parser.add_argument(
-            'congestion_control',
-            choices=[cc.value for cc in CongestionControls],
-            help='The congestion control algorithm to use.'
-        )
 
         parser.add_argument(
 	    '-p', '--server-port', type=int, default=DEFAULT_SERVER_PORT,
 	    help='The server port to connect to/listen on'
 	)
-
-        parser.add_argument(
-	    '-s', '--store-logs', action='store_true',
-	    help='Enable this option to store logs in the "log-dir" directory'
-	) 
-
 
         parser.add_argument(
 	    '-l', '--log-dir', type=writable_dir, default=LOG_DIR,
@@ -395,10 +485,14 @@ if __name__ == "__main__":
 	    help='Run in server mode'
 	)
         parser_server.add_argument(
+            'congestion_control',
+            choices=[cc.value for cc in CongestionControls],
+            help='The congestion control algorithm to use.'
+        )
+        parser_server.add_argument(
 	    'server_ip', type=str, 
 	    help='The IP address for the server to listen on'
 	)
-
         parser_client = subparsers.add_parser(
 	    'client', 
 	    help='Run in client mode'
@@ -411,6 +505,10 @@ if __name__ == "__main__":
 	    'resources', type=str, 
 	    help='Comma-separated list of resources to fetch'
 	)
+        parser_client.add_argument(
+            '-id', '--experiment_id', type=str, default=1,
+            help="The string that identifies the experiment. MIt mst be the same for all the clients."
+        )
         parser_client.add_argument(
 	    '-d', '--download-dir', type=writable_dir, default=DOWNLOAD_DIR, 
 	    help='The path to the directory to save downloaded resources'
@@ -431,9 +529,8 @@ if __name__ == "__main__":
             collect_agent.send_log(syslog.LOG_DEBUG, "quicos1: main started - got arg exception ") #.join(argparse.ArgumentError.msg))
             collect_agent.send_log(syslog.LOG_ERR, "quicos1: main started - got arg exception ") #.join(argparse.ArgumentError.msg))
             exc = sys.exc_info()[1]
-            print("armir ".join(exc))
+            print(exc)
             sys.exit(20)
 
         main = args.pop('function')
         main(**args)
-
