@@ -17,7 +17,6 @@ fi
 curr_route=$(head -n 1 "$CONFIG_FILE")
 echo "Current route: $curr_route"
 
-# Switch della rotta
 if [ "$curr_route" == "sat" ]; then
     echo "Switching from sat to terr communication"
     $cmd_terr
