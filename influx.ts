@@ -104,13 +104,13 @@ export function postGrafanaDashboard(instance: IScenarioInstance, statistics: IG
         cells: graphs.map((graph: IGraphIntermediate, index: number) => {
             let yLabel = "Valore di prova per Y";
             let graphName = "Default";
-            if (graph.targets.indexOf("min_rtt") !== -1) { yLabel = "Min RTT (ms)"; graphName = "Min RTT"; }
-            if (graph.targets.indexOf("smoothed_rtt") !== -1) { yLabel = "Smoothed RTT (ms)"; graphName = "Smoothed RTT"; }
-            if (graph.targets.indexOf("latest_rtt") !== -1) { yLabel = "Latest RTT (ms)"; graphName = "Latest RTT"; }
-            if (graph.targets.indexOf("rtt_variance") !== -1) { yLabel = "RTT Variance (ms)"; graphName = "RTT variance"; }
-            if (graph.targets.indexOf("pto_count") !== -1) { yLabel = "PTO Count"; graphName = "Probe timeout events Count"; }
-            if (graph.targets.indexOf("congestion_window") !== -1) { yLabel = "Congestion Window (bytes)"; graphName = "Congestion window"; }
-            if (graph.targets.indexOf("bytes_in_flight") !== -1) { yLabel = "Bytes in Flight (bytes)"; graphName = "Bytes in Flight"; }
+	        if (graph.targets.some(target => target.includes("min_rtt"))) { yLabel = "Min RTT (ms)"; graphName = "Min RTT"; }
+            if (graph.targets.some(target => target.includes("smoothed_rtt"))) { yLabel = "Smoothed RTT (ms)"; graphName = "Smoothed RTT"; }
+            if (graph.targets.some(target => target.includes("latest_rtt"))) { yLabel = "Latest RTT (ms)"; graphName = "Latest RTT"; }
+            if (graph.targets.some(target => target.includes("rtt_variance"))) { yLabel = "RTT Variance (ms)"; graphName = "RTT variance"; }
+            if (graph.targets.some(target => target.includes("pto_count"))) { yLabel = "PTO Count"; graphName = "Probe timeout events Count"; }
+            if (graph.targets.some(target => target.includes("congestion_window"))) { yLabel = "Congestion Window (bytes)"; graphName = "Congestion window"; }
+            if (graph.targets.some(target => target.includes("bytes_in_flight"))) { yLabel = "Bytes in Flight (bytes)"; graphName = "Bytes in Flight"; }
             return {
                 h: 4,
                 name: `${graphName} (#${graph.jobId})`,
