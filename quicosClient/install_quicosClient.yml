@@ -1,0 +1,210 @@
+#
+#   OpenBACH is a generic testbed able to control/configure multiple
+#   network/physical entities (under test) and collect data from them. It is
+#   composed of an Auditorium (HMIs), a Controller, a Collector and multiple
+#   Agents (one for each network entity that wants to be tested).
+#
+#
+#   Copyright © 2016-2023 CNES
+#
+#
+#   This file is part of the OpenBACH testbed.
+#
+#
+#   OpenBACH is a free software : you can redistribute it and/or modify it under the
+#   terms of the GNU General Public License as published by the Free Software
+#   Foundation, either version 3 of the License, or (at your option) any later
+#   version.
+#
+#   This program is distributed in the hope that it will be useful, but WITHOUT
+#   ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS
+#   FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+#   details.
+#
+#   You should have received a copy of the GNU General Public License along with
+#   this program. If not, see http://www.gnu.org/licenses/.
+#
+#
+#
+#   @file     install_quic.yml
+#   @brief    Playbook that install the Job quic
+#   @author   Francklin SIMO <armelfrancklin.simotegueu@viveris.fr>
+
+
+---
+- name: Init global variables
+  set_fact:
+    domain: quicosClient.openbach.com
+    wave:
+      git_repo: https://gitlab+deploy-token-6728044:gldt-6iVuA2i_fjxpxwa9u-jm@gitlab.com/romars1/quicos/ngtcp2-wave.git
+      version: HEAD
+    cacheable: yes
+
+- name: Install software properties common
+  apt:
+    pkg:
+      - software-properties-common
+    state: present
+    update_cache: no
+  become: yes
+  environment: "{{ openbach_proxies }}"
+
+- name: Add repositories into sources list
+  apt_repository:
+    repo: ppa:ubuntu-toolchain-r/test
+    state: present
+    update_cache: yes
+  become: yes
+  environment: "{{ openbach_proxies }}"
+
+# Create job repository and deploy files
+- name: Create the quic job repository
+  file: path=/opt/openbach/agent/jobs/quicosClient state=directory mode=0755
+
+# Install wave
+- name: Install wave requirements
+  apt:
+    pkg:
+      - g++-12
+      - gcc-12
+      - pkg-config
+      - make
+      - autoconf
+      - automake
+      - autotools-dev
+      - libtool
+      - libcunit1-dev
+      - zlib1g-dev
+      - libssl-dev
+      - libxml2-dev
+      - libev-dev
+      - libevent-dev
+      - libjansson-dev
+      - libjemalloc-dev
+      - libsystemd-dev
+      - libc-ares-dev
+      - cython3
+      - python3-dev
+      - checkinstall
+      - git
+    state: present
+    update_cache: no
+  become: yes
+  environment: "{{ openbach_proxies }}"
+
+- name: Clone OpenSSL for QUIC from github
+  git:
+    repo: https://github.com/quictls/openssl
+    depth: 1
+    version: OpenSSL_1_1_1l+quic
+    dest: /tmp/OpenSSL_1_1_1l+quic
+    force: yes
+  environment: "{{ openbach_proxies }}"
+
+- name: Compile and install lib OpenSSL for QUIC
+  shell: "{{ item }} chdir=/tmp/OpenSSL_1_1_1l+quic"
+  with_items:
+    - "./config enable-tls1_3 CC=gcc-12 CXX=g++-12 --prefix=/opt/openbach/agent/jobs/quicosClient LDFLAGS=\"-L/opt/openbach/agent/jobs/quicosClient/lib\""
+    - "make -j$(nproc)"
+    - "make install_sw"
+
+- name: Clone ghttp3 from github
+  git:
+    repo: https://github.com/ngtcp2/nghttp3
+    dest: /tmp/nghttp3
+    force: yes
+    version: HEAD
+  environment: "{{ openbach_proxies }}"
+
+- name: Compile and install lib nghttp3
+  shell: "{{ item }} chdir=/tmp/nghttp3/"
+  with_items:
+    - "autoreconf -i"
+    - "./configure CC=gcc-12 CXX=g++-12 CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicosClient/include\" LDFLAGS=\"-L/opt/openbach/agent/jobs/quicosClient/lib -Wl,-rpath,/opt/openbach/agent/jobs/quicosClient/lib\" --prefix=/opt/openbach/agent/jobs/quicosClient"
+    - "make -j$(nproc) check"
+    - "make install"
+
+- name: Clone wave from github
+  git:
+    repo: "{{ wave.git_repo }}"
+    dest: /tmp/wave
+    force: yes
+    version: "{{ wave.version }}"
+  environment: "{{ openbach_proxies }}"
+
+- name: Compile and install wave
+  shell: "{{ item }} chdir=/tmp/wave/"
+  with_items:
+    - "autoreconf -i"
+    - "./configure CC=gcc-12 CXX=g++-12 PKG_CONFIG_PATH=/opt/openbach/agent/jobs/quicosClient/lib/pkgconfig CXXFLAGS=\"-I/opt/openbach/agent/jobs/quicosClient/include\" LDFLAGS=\"-Wl,-rpath,/opt/openbach/agent/jobs/quicosClient/lib\" --prefix=/opt/openbach/agent/jobs/quicosClient"
+    - "make -j$(nproc) check"
+    - "make install"
+
+- name: Launch ldconfig
+  shell: "{{ item }} chdir=/tmp/wave/"
+  with_items:
+    - "ldconfig"
+  become: yes
+
+- name: Install wave binaries
+  copy: src={{ item.file }} dest=/usr/local/bin/{{ item.name }}  mode={{ item.mode }} remote_src=yes
+  with_items:
+    - { file: '/tmp/wave/examples/qtlsclient', mode: '0755', name: 'wave_client' }
+    - { file: '/tmp/wave/examples/qtlsserver', mode: '0755', name: 'wave_server' }
+  become: yes
+
+
+- name: Copy files into job repository
+  copy: src={{ item.file }} dest=/opt/openbach/agent/jobs/quicosClient/ mode={{ item.mode }}
+  with_items:
+    - { file: 'quicosClient.help', mode: '0644' }
+    - { file: 'quicosClient_rstats_filter.conf', mode: '0644' }
+    - { file: 'quicosClient.py', mode: '0755' }
+
+- name: Create the HTDOCS DIR
+  file: path=/var/www/{{ domain }} state=directory
+  become: yes
+
+- name: Create size specific files
+  shell: base64 /dev/urandom | head -c {{ item.size }} > /var/www/{{ domain }}/{{ item.size }}_file.txt
+  with_items:
+    - { size: '500K' }
+    - { size: '1M' }
+    - { size: '10M' }
+    - { size: '100M' }
+  become: yes
+  
+- name: Install watchdog Python package
+  pip:
+    name: watchdog
+    executable: pip3
+    state: latest
+  become: yes
+  environment: "{{ openbach_proxies }}"
+
+# Install keys
+- name: Install pyOpenSSL
+  pip: name=pyopenssl executable=pip3 state=latest
+  become: yes
+  environment: "{{ openbach_proxies }}"
+
+- name: Generate an OpenSSL private key with the default values (4096 bits, RSA)
+  openssl_privatekey:
+    path: /etc/ssl/private/{{ domain }}.pem 
+  become: yes
+
+- name: Generate an OpenSSL Certificate Signing Request
+  openssl_csr:
+    path: /etc/ssl/certs/{{ domain }}.csr
+    privatekey_path: /etc/ssl/private/{{ domain }}.pem
+    common_name: "{{ domain }}"
+  become: yes
+
+- name: Generate a Self Signed OpenSSL certificate
+  openssl_certificate:
+    path: /etc/ssl/certs/{{ domain }}.crt
+    privatekey_path: /etc/ssl/private/{{ domain }}.pem
+    csr_path: /etc/ssl/certs/{{ domain }}.csr
+    provider: selfsigned
+  become: yes
+

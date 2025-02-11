@@ -1,0 +1,96 @@
+---
+
+general:
+  name:            quicosServer
+  description: >
+      This job runs a client or a server QUIC. Supported QUIC implementations are ngtcp2.
+      WARNING: quicly is not working, so this implementation is disabled even if installed on the agents.
+      Known that, by default, each implementation is cloned from its standard repository.
+      The installed version is the HEAD of the master branch. If you wish to install another version,
+      you need to modify global variables related to the implementation to change.
+      These variables are located at the begining of the install file of the job.
+      So you have to change the address of the git repository as well as the version to install.
+  job_version:     '1'
+  keywords:        [quicosServer, web, wave]
+  persistent:      True
+  need_privileges: yes
+
+platform_configuration:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '20.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicosServer/quicosServer.py'
+    command_stop:
+  - ansible_system: 'Debian'
+    ansible_distribution:  'Ubuntu'
+    ansible_distribution_version: '22.04'
+    command: '/usr/bin/env python3 /opt/openbach/agent/jobs/quicosServer/quicosServer.py'
+    command_stop:
+
+arguments:
+  required:
+    - name: implementation
+      type: str
+      count: 1
+      description: >
+        Choose a QUIC implementation. Know that, you can install a specific version for any implementation
+      choices:
+        - ngtcp2
+    - name: congestion_control
+      type: str
+      count: 1
+      description: >
+        Choose a QUIC congestion control.
+      choices:
+        - cubic
+        - reno
+        - bbr
+        - wave
+    - name: server_ip
+      type: str
+      count: 1
+      description: >
+        The IP address of the server to listen on
+  optional:
+    - name: server_port
+      type: int
+      count: 1
+      flag: '-p'
+      description: >
+        The server port to connect to/ listen on (default 4433)
+    - name: log_dir
+      type: str
+      count: 1
+      flag: '-l'
+      description: >
+        The path to the directory to save log files (default /tmp/)
+    - name: extra_args
+      type: str
+      count: 1
+      flag: '-e'
+      description: >
+        Specify additional CLI arguments that are supported by the chosen implementation
+
+statistics:
+  - name: min_rtt
+    description: The minimum round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: smoothed_rtt
+    description: The smoothed round-trip time calculated over time
+    frequency: 'periodically during the transfer'
+  - name: latest_rtt
+    description: The latest round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: rtt_variance
+    description: The variance in round-trip time observed
+    frequency: 'periodically during the transfer'
+  - name: pto_count
+    description: The number of Probe Timeout events observed
+    frequency: 'periodically during the transfer'
+  - name: congestion_window
+    description: The size of the congestion window in bytes
+    frequency: 'periodically during the transfer'
+  - name: bytes_in_flight
+    description: The number of bytes currently in flight
+    frequency: 'periodically during the transfer'
+
