@@ -104,16 +104,26 @@ export function postGrafanaDashboard(instance: IScenarioInstance, statistics: IG
         cells: graphs.map((graph: IGraphIntermediate, index: number) => {
             let yLabel = "Valore di prova per Y";
             let graphName = "Default";
-	        if (graph.targets.some(target => target.includes("min_rtt"))) { yLabel = "Min RTT (ms)"; graphName = "Min RTT"; }
+	    let isHistogram = graph.name.toLowerCase().includes("fairness");
+
+            if (graph.targets.some(target => target.includes("fairness"))) { yLabel = ""; graphName = "Fairness"; }
+            if (graph.targets.some(target => target.includes("average_rtt"))) { yLabel = "Average RTT (ms)"; graphName = "Average RTT"; }
+            if (graph.targets.some(target => target.includes("average_throughput"))) { yLabel = "Average Throughput (bytes/ms)"; graphName = "Average Throughput"; }
+            if (graph.targets.some(target => target.includes("min_rtt"))) { yLabel = "Min RTT (ms)"; graphName = "Min RTT"; }
+            if (graph.targets.some(target => target.includes("smoothed_rtt"))) { yLabel = "Smoothed RTT (ms)"; graphName = "Smoothed RTT"; }
             if (graph.targets.some(target => target.includes("smoothed_rtt"))) { yLabel = "Smoothed RTT (ms)"; graphName = "Smoothed RTT"; }
             if (graph.targets.some(target => target.includes("latest_rtt"))) { yLabel = "Latest RTT (ms)"; graphName = "Latest RTT"; }
             if (graph.targets.some(target => target.includes("rtt_variance"))) { yLabel = "RTT Variance (ms)"; graphName = "RTT variance"; }
             if (graph.targets.some(target => target.includes("pto_count"))) { yLabel = "PTO Count"; graphName = "Probe timeout events Count"; }
             if (graph.targets.some(target => target.includes("congestion_window"))) { yLabel = "Congestion Window (bytes)"; graphName = "Congestion window"; }
             if (graph.targets.some(target => target.includes("bytes_in_flight"))) { yLabel = "Bytes in Flight (bytes)"; graphName = "Bytes in Flight"; }
+            
+            const isSingleStat = graph.targets.some(target =>["fairness", "average_rtt", "average_throughput"].some(keyword => target.includes(keyword)));
+
             return {
                 h: 4,
                 name: `${graphName} (#${graph.jobId})`,
+                type: isSingleStat ? "single-stat" : "line",
                 queries: graph.targets.map((statName: string, id: number) => ({
                     query: [
                         `SELECT "${statName}" FROM "openbach"."openbach"."${graph.name}"`,
