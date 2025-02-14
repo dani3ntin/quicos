@@ -268,7 +268,7 @@ def client(implementation, server_port, log_dir, extra_args, server_ip, resource
             
             time_taken = (end_time - start_time) / 1000
             
-            throughput = file_size / time_taken if time_taken > 0 else 0
+            throughput = round((file_size * 8 / time_taken) / 1_000_000, 2) if time_taken > 0 else 0
             
             collect_agent.send_stat(collect_agent.now(), throughput=throughput)
 
