@@ -15,9 +15,8 @@ def main():
     # Parsing degli argomenti e logica del job
     parser = argparse.ArgumentParser(description="Queue Manager Job")
     parser.add_argument('action', type=str, choices=['reset_queue', 'set_queue'], help="Action to perform")
-    parser.add_argument('queue_type', type=str, choices=['HTB', 'FIFO', 'FQ_CoDel'], nargs='?', default='HTB', help="Type of queue to configure")
+    parser.add_argument('queue_type', type=str, choices=['HTB', 'FIFO', 'FQ_CoDel', 'NetemQueue'], nargs='?', default='HTB', help="Type of queue to configure")
     parser.add_argument('--bond', action='store_true', help="Apply to both eth3 and eth4")
-    parser.add_argument('--delay', help="Set the delay")
 
     args = parser.parse_args()
 
@@ -52,7 +51,8 @@ def set_queue(queue_type, bond):
             os.system(f"tc qdisc add dev {iface} root pfifo_fast")
         elif queue_type == "FQ_CoDel":
             os.system(f"tc qdisc add dev {iface} root fq_codel")
+        elif queue_type == "NetemQueue":
+            os.system(f"tc qdisc add dev {iface} root netem limit 62500 delay 250ms")
 
 if __name__ == "__main__":
     main()
-
