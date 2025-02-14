@@ -29,16 +29,8 @@ arguments:
       count: 1
       description: >
         Percorso della cartella contenente i file di log.
-  subcommand:
-    - group_name: mode
-      optional: false
-      choices:
-        - name: server
-        - name: client
-  optional:
-    - name: experiment_id
-      type: str
+    - name: n_server
+      type: int
       count: 1
-      flag: '-id'
       description: >
         Nome della cartella contenente i log specifici per l'esperimento.
