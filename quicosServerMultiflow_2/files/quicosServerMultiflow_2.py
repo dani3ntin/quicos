@@ -111,9 +111,9 @@ class LogFileHandler(FileSystemEventHandler):
         self.collect_agent = collect_agent
         self.file_positions = {}
         self.file_indices = {}
+        self.file_start_times = {}
         self.current_index = 1
         self.processes = {}
-        self.start_time = self.collect_agent.now()
 
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith(".sqlog"):
@@ -121,6 +121,7 @@ class LogFileHandler(FileSystemEventHandler):
             
             if event.src_path not in self.file_indices:
                 self.file_indices[event.src_path] = self.current_index
+                self.file_start_times[event.src_path] = self.collect_agent.now()
                 print(f"Assegnato indice {self.current_index} al file {event.src_path}")
                 self.current_index += 1
             else:
@@ -157,17 +158,18 @@ class LogFileHandler(FileSystemEventHandler):
                         continue
                     cleaned_line = line.strip()
                     file_index = self.file_indices.get(file_path, 0)
-                    self._process_line(cleaned_line, file_index)
+                    self._process_line(cleaned_line, file_index, file_path)
                     self.file_positions[file_path] = file.tell()
         except Exception as e:
             print(f"Errore durante la lettura del file {file_path}: {e}")
 
-    def _process_line(self, line, file_index):
+    def _process_line(self, line, file_index, file_path):
         """ Elabora e invia i dati letti dal file """
         try:
             data = json.loads(line)
             timestamp = data.get("time")
             stats = data.get("data", {})
+
             required_keys = {'min_rtt', 'smoothed_rtt', 'latest_rtt', 'rtt_variance', 'pto_count', 'congestion_window', 'bytes_in_flight'}
             if not all(key in stats for key in required_keys):
                 print(f"Riga scartata perché manca almeno una chiave: {stats}")
@@ -186,13 +188,16 @@ class LogFileHandler(FileSystemEventHandler):
                 f'congestion_window_{file_index}': stats.get('congestion_window'),
                 f'bytes_in_flight_{file_index}': stats.get('bytes_in_flight'),
             }
+
             print(f"Nuove statistiche dal file {file_index}: {statistics}")
             MAX_C_LONG = 2**63 - 1  
             congestion_key = f'congestion_window_{file_index}'
             statistics[congestion_key] = min(statistics[congestion_key], MAX_C_LONG)
 
-            timestamp = int(timestamp)
-            self.collect_agent.send_stat(timestamp + self.start_time, **statistics)
+            file_start_time = self.file_start_times.get(file_path, self.collect_agent.now())
+            adjusted_timestamp = int(timestamp) + file_start_time
+
+            self.collect_agent.send_stat(adjusted_timestamp, **statistics)
         except json.JSONDecodeError:
             print(f"Riga non valida (non JSON): {line}")
         except Exception as e:
